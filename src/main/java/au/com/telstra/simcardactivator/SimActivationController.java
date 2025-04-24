@@ -1,47 +1,58 @@
 package au.com.telstra.simcardactivator;
 
+import au.com.telstra.simcardactivator.model.SimCardRecord;
+import au.com.telstra.simcardactivator.repository.SimCardRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.Map;
 
-    @RestController
-    @RequestMapping("/sim")
-    public class SimActivationController {
+@RestController
+@RequestMapping("/sim")
+public class SimActivationController {
 
-        private final RestTemplate restTemplate = new RestTemplate();
+    @Autowired
+    private SimCardRepository simCardRepository;
 
-        @PostMapping("/activate")
-        public ResponseEntity<String> activateSim(@RequestBody Map<String, String> request) {
-            String iccid = request.get("iccid");
-            String customerEmail = request.get("customerEmail");
+    private final RestTemplate restTemplate = new RestTemplate();
 
-            System.out.println("Received ICCID: " + iccid);
-            System.out.println("Received Customer Email: " + customerEmail);
+    @PostMapping("/activate")
+    public ResponseEntity<String> activateSim(@RequestBody Map<String, String> request) {
+        String iccid = request.get("iccid");
+        String customerEmail = request.get("customerEmail");
 
-            Map<String, String> actuatorPayload = Map.of("iccid", iccid);
+        Map<String, String> actuatorPayload = Map.of("iccid", iccid);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        HttpEntity<Map<String, String>> entity = new HttpEntity<>(actuatorPayload, headers);
 
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-            HttpEntity<Map<String, String>> entity = new HttpEntity<>(actuatorPayload, headers);
-
-            try {
-                ResponseEntity<Map> response = restTemplate.postForEntity(
-                        "http://localhost:8444/actuate",
-                        entity,
-                        Map.class
-                );
-
-                boolean success = (Boolean) response.getBody().get("success");
-                System.out.println("Activation result: " + success);
-
-                return ResponseEntity.ok("Activation success: " + success);
-
-            } catch (Exception e) {
-                System.out.println("Error during activation: " + e.getMessage());
-                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                        .body("Activation failed due to internal error.");
-            }
+        boolean success;
+        try {
+            ResponseEntity<Map> response = restTemplate.postForEntity(
+                    "http://localhost:8444/actuate", entity, Map.class
+            );
+            success = (Boolean) response.getBody().get("success");
+        } catch (Exception e) {
+            success = false;
         }
+
+        SimCardRecord record = new SimCardRecord(iccid, customerEmail, success);
+        simCardRepository.save(record);
+
+        return ResponseEntity.ok("Activation success: " + success);
     }
+
+    @GetMapping("/lookup")
+    public ResponseEntity<?> lookupSimCard(@RequestParam Long simCardId) {
+        return simCardRepository.findById(simCardId)
+                .map(record -> Map.of(
+                        "iccid", record.getIccid(),
+                        "customerEmail", record.getCustomerEmail(),
+                        "active", record.isActive()
+                ))
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+}
