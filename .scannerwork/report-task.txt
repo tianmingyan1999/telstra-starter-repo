@@ -1,0 +1,6 @@
+projectKey=telstra-sim-activation
+serverUrl=http://localhost:9000
+serverVersion=25.4.0.105899
+dashboardUrl=http://localhost:9000/dashboard?id=telstra-sim-activation
+ceTaskId=acc82602-ef21-4df1-acfb-b4feca6546ab
+ceTaskUrl=http://localhost:9000/api/ce/task?id=acc82602-ef21-4df1-acfb-b4feca6546ab
